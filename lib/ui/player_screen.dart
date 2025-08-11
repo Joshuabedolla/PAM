@@ -1,12 +1,10 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../models/playlist.dart';
 import '../models/song.dart';
 import '../services/playlist_repository.dart';
-import 'select_song_screen.dart'; // Pantalla para seleccionar canciones
+import '../services/audio_handler.dart';
+import 'select_song_screen.dart';
 
 class PlayerScreen extends StatelessWidget {
   final Playlist playlist;
@@ -16,6 +14,7 @@ class PlayerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final audioHandler = Provider.of<MusicAudioHandler>(context, listen: false);
 
     return Scaffold(
       appBar: AppBar(
@@ -24,21 +23,27 @@ class PlayerScreen extends StatelessWidget {
         foregroundColor: theme.colorScheme.onSurface,
         elevation: 2,
       ),
-      body: ListView.separated(
-        itemCount: playlist.songs.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final song = playlist.songs[index];
-          return ListTile(
-            title: Text(song.title, style: theme.textTheme.titleMedium),
-            subtitle: Text(song.artist, style: theme.textTheme.bodyMedium),
-            trailing: Icon(Icons.play_arrow, color: theme.colorScheme.primary),
-            onTap: () {
-              // Aquí puedes añadir funcionalidad para reproducir la canción
-            },
-          );
-        },
-      ),
+      body: playlist.songs.isEmpty
+          ? const Center(
+              child: Text('No hay canciones en esta playlist'),
+            )
+          : ListView.separated(
+              itemCount: playlist.songs.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final song = playlist.songs[index];
+                return ListTile(
+                  title: Text(song.title, style: theme.textTheme.titleMedium),
+                  subtitle: Text(song.artist, style: theme.textTheme.bodyMedium),
+                  trailing: Icon(Icons.play_arrow, color: theme.colorScheme.primary),
+                  onTap: () async {
+                    // Reproducir lista completa desde esta canción
+                    final startIndex = index;
+                    await audioHandler.setQueueFromSongs(playlist.songs.sublist(startIndex));
+                  },
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final selectedSong = await Navigator.push<Song>(
@@ -52,7 +57,7 @@ class PlayerScreen extends StatelessWidget {
 
           if (selectedSong != null) {
             final playlistRepo = context.read<PlaylistRepository>();
-            playlistRepo.addSongToPlaylist(playlist.id, selectedSong);
+            await playlistRepo.addSongToPlaylist(playlist.id, selectedSong);
           }
         },
         child: const Icon(Icons.add),
@@ -61,8 +66,8 @@ class PlayerScreen extends StatelessWidget {
     );
   }
 
-  // Ejemplo duro de canciones disponibles
   List<Song> getAllAvailableSongs() {
+    // Esto idealmente vendría de un repositorio o base de datos
     return [
       Song(
         id: '1',

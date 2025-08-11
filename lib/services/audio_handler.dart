@@ -1,3 +1,4 @@
+
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/song.dart';
@@ -21,7 +22,7 @@ class MusicAudioHandler extends BaseAudioHandler {
 
   Future<void> setQueueFromSongs(List<Song> songs) async {
     final mediaItems = songs.map((song) => MediaItem(
-          id: song.url,  // Por ejemplo: 'assets/audio/archivo.mp3'
+          id: song.url,
           album: song.album,
           title: song.title,
           artist: song.artist,
@@ -31,10 +32,18 @@ class MusicAudioHandler extends BaseAudioHandler {
 
     queue.add(mediaItems);
 
-    // Aquí cambia para usar AudioSource.asset en lugar de AudioSource.uri
-    final audioSources = mediaItems
-        .map((item) => AudioSource.asset(item.id))  // <-- Cambiado a asset
-        .toList();
+    final audioSources = mediaItems.map((item) {
+      if (item.id.startsWith('http')) {
+        // Canción desde internet
+        return AudioSource.uri(Uri.parse(item.id));
+      } else if (item.id.startsWith('/')) {
+        // Ruta absoluta en disco local
+        return AudioSource.uri(Uri.file(item.id));
+      } else {
+        // Asset interno de Flutter
+        return AudioSource.asset(item.id);
+      }
+    }).toList();
 
     await _player.setAudioSource(ConcatenatingAudioSource(children: audioSources));
     await _player.play();

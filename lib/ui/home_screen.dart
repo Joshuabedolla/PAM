@@ -1,6 +1,7 @@
+// ignore_for_file: unused_import
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:audio_service/audio_service.dart';
 import '../models/playlist.dart';
 import '../services/playlist_repository.dart';
 import '../services/audio_handler.dart';
@@ -13,7 +14,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playlists = context.watch<PlaylistRepository>().getAllPlaylists();
-    final audioHandler = Provider.of<AudioHandler>(context, listen: false);
+    final audioHandler = context.read<MusicAudioHandler>();
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -45,9 +46,7 @@ class HomeScreen extends StatelessWidget {
                             final playlist = playlists[index];
                             return GestureDetector(
                               onTap: () async {
-                                if (audioHandler is MusicAudioHandler) {
-                                  await audioHandler.setQueueFromSongs(playlist.songs);
-                                }
+                                await audioHandler.setQueueFromSongs(playlist.songs);
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -115,7 +114,6 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
           ),
-          // MiniPlayer fijo abajo
           MiniPlayer(audioHandler: audioHandler),
         ],
       ),

@@ -1,5 +1,5 @@
-// main.dart
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'theme.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:provider/provider.dart';
@@ -7,16 +7,29 @@ import 'services/playlist_repository.dart';
 import 'services/audio_handler.dart';
 import 'ui/home_screen.dart';
 
+import 'models/song.dart';
+import 'models/playlist.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Inicializa Hive con Flutter
+  await Hive.initFlutter();
+
+  // Registra los adaptadores generados para tus modelos
+  Hive.registerAdapter(SongAdapter());
+  Hive.registerAdapter(PlaylistAdapter());
+
   final audioHandler = await initAudioHandler();
+
+  final playlistRepo = PlaylistRepository();
+  await playlistRepo.init();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PlaylistRepository()),
-        Provider<AudioHandler>.value(value: audioHandler),
+        ChangeNotifierProvider<PlaylistRepository>.value(value: playlistRepo),
+        Provider<MusicAudioHandler>.value(value: audioHandler as MusicAudioHandler),
       ],
       child: const MyApp(),
     ),
@@ -47,7 +60,11 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      const HomeScreen(),
+      // Padding para no ocultar contenido debajo del mini reproductor
+      Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: const HomeScreen(),
+      ),
       const Center(child: Text('Buscar')),
       const Center(child: Text('Tu Biblioteca')),
     ];
@@ -67,7 +84,11 @@ class _MyAppState extends State<MyApp> {
         ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _selectedIndex,
-          onTap: (index) => setState(() => _selectedIndex = index),
+          onTap: (index) {
+            if (mounted) {
+              setState(() => _selectedIndex = index);
+            }
+          },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
             BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Buscar'),
@@ -79,13 +100,12 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// Mini reproductor conectado al AudioHandler
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final audioHandler = Provider.of<AudioHandler>(context);
+    final audioHandler = Provider.of<MusicAudioHandler>(context);
 
     return StreamBuilder<MediaItem?>(
       stream: audioHandler.mediaItem,
@@ -105,12 +125,18 @@ class MiniPlayer extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  mediaItem.artUri.toString(),
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                ),
+                child: mediaItem.artUri != null
+                    ? Image.network(
+                        mediaItem.artUri!.toString(),
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        width: 50,
+                        height: 50,
+                        color: Colors.grey,
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -118,8 +144,19 @@ class MiniPlayer extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(mediaItem.title, overflow: TextOverflow.ellipsis),
-                    Text(mediaItem.artist ?? '', overflow: TextOverflow.ellipsis),
+                    Text(
+                      mediaItem.title,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      mediaItem.artist ?? '',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
                   ],
                 ),
               ),
@@ -128,10 +165,11 @@ class MiniPlayer extends StatelessWidget {
                 builder: (context, stateSnapshot) {
                   final playing = stateSnapshot.data?.playing ?? false;
                   return IconButton(
-                    icon: Icon(playing ? Icons.pause : Icons.play_arrow),
-                    onPressed: () => playing
-                        ? audioHandler.pause()
-                        : audioHandler.play(),
+                    icon: Icon(
+                      playing ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white,
+                    ),
+                    onPressed: () => playing ? audioHandler.pause() : audioHandler.play(),
                   );
                 },
               ),
